@@ -1,0 +1,48 @@
+//@version=4 
+strategy("Hotei X bot", pyramiding = 10, calc_on_order_fills=true, calc_on_every_tick=true, overlay=true)
+BaseMarket = input(title="Base Market", defval="BINANCE:XRPUSDT", options=["BINANCE:XRPUSDT", "BINANCE:LINKUSDT", "BINANCE:QTUMUSDT", "BINANCE:IOSTUSDT", "BINANCE:XMRUSDT", "BINANCE:XTZUSDT", "BINANCE:BTCUSDT", "BINANCE:BCHUSDT", "BINANCE:VETUSDT", "BINANCE:BNBUSDT", "BINANCE:XLMUSDT", "BINANCE:ETHUSDT", "BINANCE:IOTAUSDT", "BINANCE:EOSUSDT", "BINANCE:LTCUSDT", "BINANCE:ATOMUSDT", "BINANCE:TRXUSDT", "BINANCE:ADAUSDT", "BINANCE:NEOUSDT", "BINANCE:ONTUSDT", "BINANCE:DASHUSDT", "BINANCE:ZECUSDT"])
+BaseMarketUseCustom = input(title="Use Custom Base Market?", defval=false)
+BaseMarketCustomString = input(title="Custom Base Market (TradingView Symbol)", defval="")
+OtherMarket = input(title="Other Market", defval="BINANCE:XLMUSDT", options=["BINANCE:XRPUSDT", "BINANCE:LINKUSDT", "BINANCE:QTUMUSDT", "BINANCE:IOSTUSDT", "BINANCE:XMRUSDT", "BINANCE:XTZUSDT", "BINANCE:BTCUSDT", "BINANCE:BCHUSDT", "BINANCE:VETUSDT", "BINANCE:BNBUSDT", "BINANCE:XLMUSDT", "BINANCE:ETHUSDT", "BINANCE:IOTAUSDT", "BINANCE:EOSUSDT", "BINANCE:LTCUSDT", "BINANCE:ATOMUSDT", "BINANCE:TRXUSDT", "BINANCE:ADAUSDT", "BINANCE:NEOUSDT", "BINANCE:ONTUSDT", "BINANCE:DASHUSDT", "BINANCE:ZECUSDT"])
+OtherMarketUseCustom = input(title="Use Custom Other Market?", defval=false)
+OtherMarketCustomString = input(title="Custom Other Market (TradingView Symbol)", defval="")
+ShowWarning = input(title="Show warning?", defval=true)
+GetBase() =>
+    BaseMarketUseCustom ? BaseMarketCustomString : BaseMarket
+GetOther() =>
+    OtherMarketUseCustom ? OtherMarketCustomString : OtherMarket
+BaseClose = security(GetBase(), timeframe.period, close)
+OtherClose = security(GetOther(), timeframe.period, close)
+BaseCloseTime = security(GetBase(), timeframe.period, time)
+OtherCloseTime = security(GetOther(), timeframe.period, time)
+BaseChange = ((BaseClose - BaseClose[1]) / BaseClose[1]) * 100
+OtherChange = ((OtherClose - OtherClose[1]) / OtherClose[1]) * 100
+PercentageDifference = abs(BaseChange - OtherChange)
+if(BaseChange < OtherChange)
+    PercentageDifference := PercentageDifference * -1
+if(na(BaseChange) or na(OtherChange) or na(BaseCloseTime) or na(OtherCloseTime) or BaseCloseTime != OtherCloseTime) // Either market likely closed or fails. won't compare
+    PercentageDifference := na
+showEMA = input(true)
+MA = input(150, title="Longueur")
+length = input(20, minval=1, title="Epaisseur")
+mult = input(2.0, minval=0.001, maxval=50, title="Largeur")
+basis = sma(MA * cum(PercentageDifference), length)
+dev = mult * stdev(MA * cum(PercentageDifference), length)
+upper = basis + dev * 0.8
+lower = basis - dev * 0.8
+plot(showEMA ? MA * cum(PercentageDifference) : na, style=plot.style_line, color=color.white, title="Volume MA")
+p1 = plot(upper, title='BB Upper', color=color.new(color.white, 35))
+p2 = plot(lower, title='BB Lower', color=color.new(color.white, 35))
+fill(p1, p2, title='BB Background', color=color.new(color.black, 100))
+source = MA * cum(PercentageDifference)
+buyEntry = crossover(source, lower)
+sellEntry = crossunder(source, upper)
+if (crossover(source, lower))
+    strategy.entry("BBandLE", strategy.long, stop= lower, oca_name="BollingerBands", oca_type=strategy.oca.cancel, comment="BBandLE")
+else
+    strategy.cancel(id="BBandLE")
+if (crossunder(source, upper))
+    strategy.entry("BBandSE", strategy.short, stop=upper, oca_name="BollingerBands", oca_type=strategy.oca.cancel, comment="BBandSE")
+else
+    strategy.cancel(id="BBandSE")
+// principe : appliquer la stratègie sur la division des deux pairs en entrée
